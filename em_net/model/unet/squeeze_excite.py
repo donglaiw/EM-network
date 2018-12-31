@@ -2,9 +2,7 @@ import torch
 import math
 import torch.nn as nn
 import torch.nn.functional as F
-from ..libs.sync import SynchronizedBatchNorm1d, SynchronizedBatchNorm3d
-
-from .block import *
+from em_net.model.residual import resBlock_seIso, resBlock_seAnisoDilation
 
 # u-net with dilated convolution, ELU and synchronized BN
 class unet_SE_synBN(nn.Module):
@@ -16,10 +14,10 @@ class unet_SE_synBN(nn.Module):
         self.aniso_num = aniso_num # the number of anisotropic conv layers
 
         self.downC = nn.ModuleList(
-                  [ResUNetAnisoBlockDilation(in_num, filters[0])]
-                + [ResUNetAnisoBlockDilation(filters[x], filters[x + 1])
+                  [resBlock_seAnisoDilation(in_num, filters[0])]
+                + [resBlock_seAnisoDilation(filters[x], filters[x + 1])
                    for x in range(self.aniso_num-1)]
-                + [ResUNetIsoBlock(filters[x], filters[x + 1])
+                + [resBlock_seIso(filters[x], filters[x + 1])
                    for x in range(self.aniso_num-1, self.layer_num-2)]
                       ) 
 
@@ -30,7 +28,7 @@ class unet_SE_synBN(nn.Module):
                     for x in range(self.aniso_num, self.layer_num-1)]
                 )
 
-        self.center = ResUNetIsoBlock(filters[-2], filters[-1])
+        self.center = resBlock_seIso(filters[-2], filters[-1])
 
         self.upS = nn.ModuleList(
             [nn.Sequential(
@@ -46,11 +44,11 @@ class unet_SE_synBN(nn.Module):
             )
 
         self.upC = nn.ModuleList(
-            [ResUNetIsoBlock(filters[self.layer_num - 2 - x], filters[self.layer_num - 2 - x])
+            [resBlock_seIso(filters[self.layer_num - 2 - x], filters[self.layer_num - 2 - x])
              for x in range(self.layer_num-self.aniso_num-1)]
-          + [ResUNetAnisoBlockDilation(filters[self.layer_num - 2 - x], filters[self.layer_num - 2 - x])
+          + [resBlock_seAnisoDilation(filters[self.layer_num - 2 - x], filters[self.layer_num - 2 - x])
              for x in range(1, self.aniso_num)]
-          + [ResUNetAnisoBlockDilation(filters[0], filters[0])]
+          + [resBlock_seAnisoDilation(filters[0], filters[0])]
             )
 
         self.fconv = conv3d_bn_non(filters[0], out_num, kernel_size=(3,3,3), stride=1, padding=(1,1,1), bias=True)
@@ -59,14 +57,12 @@ class unet_SE_synBN(nn.Module):
         self.sigmoid = nn.Sigmoid()     
 
         for m in self.modules():
+            import pdb; pdb.set_trace()
             if isinstance(m, nn.Conv3d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, SynchronizedBatchNorm3d):
+            elif 'BatchNorm' in m.name:
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
-            elif isinstance(m, SynchronizedBatchNorm1d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()    
 
     def forward(self, x):
         down_u = [None]*(self.layer_num-1)
@@ -93,7 +89,6 @@ class unet_SE_synBN_visualization(unet_SE_synBN):
                                       out_num, filters, aniso_num)  
 
     def forward(self, x):
-
         down_u = [None]*(self.layer_num-1)
         for i in range(self.layer_num-1):
             down_u[i] = self.downC[i](x)

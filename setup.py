@@ -1,7 +1,7 @@
 from distutils.core import setup
 from distutils.extension import Extension
 from distutils.sysconfig import get_python_inc
-from setuptools import setup, Extension, find_packages
+from setuptools import find_packages
 import numpy as np
 
 def setup_pkg():

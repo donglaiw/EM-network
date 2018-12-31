@@ -3,7 +3,7 @@
 
 ## Installation
 
-* Clone this repository : `git clone --recursive https://github.com/zudi-lin/EM-network.git`
+* Clone this repository : `git clone --recursive https://github.com/donglaiw/EM-network.git`
 * Download and install [Anaconda](https://www.anaconda.com/download/) (Python 3.6 version).
 * Create a conda environment :  `conda env create -f EM-network/envs/py3_pytorch.yml`
 

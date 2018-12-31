@@ -9,6 +9,8 @@ from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage.measurements import label
 from scipy.ndimage.morphology import binary_dilation
 
+from em_dataLib.geometry import Coordinate
+
 '''
 simple augmentation: 
 - train: random select method, 1 to 1
@@ -88,17 +90,6 @@ class simpleaug_train_produce():
         for idx in range(len(inputs)):
             inputs[idx] = produce_simple_train_sample(inputs[idx], rule)
         return inputs   
-
-# class simpleaug_train_produce():
-#     def __init__(self, model_io_size=[24, 256, 256]):
-#         self.rule = np.random.randint(2, size=4)
-
-#     def __call__(self, imgs, mask):
-#         #print (self.rule)
-#         imgs_aug = produce_simple_train_sample(imgs, self.rule)
-#         mask_aug = produce_simple_train_sample(mask, self.rule)
-#         return imgs_aug, mask_aug
-
 
 class simpleaug_test_reverse():
     def __init__(self, model_io_size=[24, 256, 256]):
@@ -216,7 +207,6 @@ def upscale_transformation(transformation, output_shape, interpolate_order=1):
 
 
 def create_elastic_transformation(shape, control_point_spacing=100, jitter_sigma=10.0, subsample=1):
-
     dims = len(shape)
     subsample_shape = tuple(max(1, int(s/subsample)) for s in shape)
 
@@ -250,16 +240,13 @@ def create_elastic_transformation(shape, control_point_spacing=100, jitter_sigma
 
 
 def rotate(point, angle):
-
     res = np.array(point)
     res[0] = math.sin(angle)*point[1] + math.cos(angle)*point[0]
     res[1] = -math.sin(angle)*point[0] + math.cos(angle)*point[1]
-
     return res
 
 
 def create_rotation_transformation(shape, angle, subsample=1):
-
     dims = len(shape)
     subsample_shape = tuple(max(1, int(s/subsample)) for s in shape)
     control_points = (2,)*dims
@@ -277,7 +264,6 @@ def create_rotation_transformation(shape, angle, subsample=1):
     control_point_offsets = np.zeros(
         (dims,) + control_points, dtype=np.float32)
     for control_point in np.ndindex(control_points):
-
         point = np.array(control_point)*control_point_scaling_factor
         center_offset = np.array(
             [p-c for c, p in zip(center, point)], dtype=np.float32)
@@ -290,13 +276,12 @@ def create_rotation_transformation(shape, angle, subsample=1):
 
 
 def random_offset(max_misalign):
-
     return Coordinate((0,) + tuple(max_misalign - random.randint(0, 2*int(max_misalign)) for d in range(2)))
 
 
 def misalign(transformation, prob_slip, prob_shift, max_misalign):
     num_sections = transformation[0].shape[0]
-    print (num_sections)
+    #print (num_sections)
     shifts = [Coordinate((0, 0, 0))]*num_sections
     for z in range(num_sections):
         r = random.random()
@@ -432,261 +417,6 @@ def apply_elastic_transform(img, mask):
     return img_transform/img_transform.shape[1], seg_transform
 
 
-class Coordinate(tuple):
-    '''A ``tuple`` of integers.
-
-    Allows the following element-wise operators: addition, subtraction,
-    multiplication, division, absolute value, and negation. This allows to
-    perform simple arithmetics with coordinates, e.g.::
-
-        shape = Coordinate((2, 3, 4))
-        voxel_size = Coordinate((10, 5, 1))
-        size = shape*voxel_size # == Coordinate((20, 15, 4))
-    '''
-
-    def __new__(cls, array_like):
-        return super(Coordinate, cls).__new__(
-            cls,
-            [
-                int(x)
-                if x is not None
-                else None
-                for x in array_like])
-
-    def dims(self):
-        return len(self)
-
-    def __neg__(self):
-
-        return Coordinate(
-            -a
-            if a is not None
-            else None
-            for a in self)
-
-    def __abs__(self):
-
-        return Coordinate(
-            abs(a)
-            if a is not None
-            else None
-            for a in self)
-
-    def __add__(self, other):
-
-        assert isinstance(
-            other, tuple), "can only add Coordinate or tuples to Coordinate"
-        assert self.dims() == len(other), "can only add Coordinate of equal dimensions"
-
-        return Coordinate(
-            a+b
-            if a is not None and b is not None
-            else None
-            for a, b in zip(self, other))
-
-    def __sub__(self, other):
-
-        assert isinstance(
-            other, tuple), "can only subtract Coordinate or tuples to Coordinate"
-        assert self.dims() == len(other), "can only subtract Coordinate of equal dimensions"
-
-        return Coordinate(
-            a-b
-            if a is not None and b is not None
-            else None
-            for a, b in zip(self, other))
-
-    def __mul__(self, other):
-
-        if isinstance(other, tuple):
-
-            assert self.dims() == len(other), "can only multiply Coordinate of equal dimensions"
-
-            return Coordinate(
-                a*b
-                if a is not None and b is not None
-                else None
-                for a, b in zip(self, other))
-
-        elif isinstance(other, numbers.Number):
-
-            return Coordinate(
-                a*other
-                if a is not None
-                else None
-                for a in self)
-
-        else:
-
-            raise TypeError(
-                "multiplication of Coordinate with type %s not supported" % type(other))
-
-    def __div__(self, other):
-
-        if isinstance(other, tuple):
-
-            assert self.dims() == len(other), "can only divide Coordinate of equal dimensions"
-
-            return Coordinate(
-                a/b
-                if a is not None and b is not None
-                else None
-                for a, b in zip(self, other))
-
-        elif isinstance(other, numbers.Number):
-
-            return Coordinate(
-                a/other
-                if a is not None
-                else None
-                for a in self)
-
-        else:
-
-            raise TypeError(
-                "division of Coordinate with type %s not supported" % type(other))
-
-    def __truediv__(self, other):
-
-        if isinstance(other, tuple):
-
-            assert self.dims() == len(other), "can only divide Coordinate of equal dimensions"
-
-            return Coordinate(
-                a/b
-                if a is not None and b is not None
-                else None
-                for a, b in zip(self, other))
-
-        elif isinstance(other, numbers.Number):
-
-            return Coordinate(
-                a/other
-                if a is not None
-                else None
-                for a in self)
-
-        else:
-
-            raise TypeError(
-                "division of Coordinate with type %s not supported" % type(other))
-
-    def __floordiv__(self, other):
-
-        if isinstance(other, tuple):
-
-            assert self.dims() == len(other), "can only divide Coordinate of equal dimensions"
-
-            return Coordinate(
-                a//b
-                if a is not None and b is not None
-                else None
-                for a, b in zip(self, other))
-
-        elif isinstance(other, numbers.Number):
-
-            return Coordinate(
-                a//other
-                if a is not None
-                else None
-                for a in self)
-
-        else:
-
-            raise TypeError(
-                "division of Coordinate with type %s not supported" % type(other))
-
-
-# def prepare_deform_slice(slice_shape, deformation_strength, iterations, randomseed):
-#     # grow slice shape by 2 x deformation strength
-#     np.random.seed(randomseed)
-#     grow_by = 2 * deformation_strength
-#     #print ('sliceshape: '+str(slice_shape[0])+' growby: '+str(grow_by)+ ' strength: '+str(deformation_strength))
-#     shape = (slice_shape[0] + grow_by, slice_shape[1] + grow_by)
-#     # randomly choose fixed x or fixed y with p = 1/2
-#     fixed_x = np.random.random() < .5
-#     if fixed_x:
-#         x0, y0 = 0, np.random.randint(1, shape[1] - 2)
-#         x1, y1 = shape[0] - 1, np.random.randint(1, shape[1] - 2)
-#     else:
-#         x0, y0 = np.random.randint(1, shape[0] - 2), 0
-#         x1, y1 = np.random.randint(1, shape[0] - 2), shape[1] - 1
-
-#     ## generate the mask of the line that should be blacked out
-#     #print (shape)
-#     line_mask = np.zeros(shape, dtype='bool')
-#     rr, cc = line(x0, y0, x1, y1)
-#     line_mask[rr, cc] = 1
-
-#     # generate vectorfield pointing towards the line to compress the image
-#     # first we get the unit vector representing the line
-#     line_vector = np.array([x1 - x0, y1 - y0], dtype='float32')
-#     line_vector /= np.linalg.norm(line_vector)
-#     # next, we generate the normal to the line
-#     normal_vector = np.zeros_like(line_vector)
-#     normal_vector[0] = - line_vector[1]
-#     normal_vector[1] = line_vector[0]
-
-#     # make meshgrid
-#     x, y = np.meshgrid(np.arange(shape[1]), np.arange(shape[0]))
-#     # generate the vector field
-#     flow_x, flow_y = np.zeros(shape), np.zeros(shape)
-
-#     # find the 2 components where coordinates are bigger / smaller than the line
-#     # to apply normal vector in the correct direction
-#     components, n_components = label(np.logical_not(line_mask).view('uint8'))
-#     assert n_components == 2, "%i" % n_components
-#     neg_val = components[0, 0] if fixed_x else components[-1, -1]
-#     pos_val = components[-1, -1] if fixed_x else components[0, 0]
-
-#     flow_x[components == pos_val] = deformation_strength * normal_vector[1]
-#     flow_y[components == pos_val] = deformation_strength * normal_vector[0]
-#     flow_x[components == neg_val] = - deformation_strength * normal_vector[1]
-#     flow_y[components == neg_val] = - deformation_strength * normal_vector[0]
-
-#     # generate the flow fields
-#     flow_x, flow_y = (x + flow_x).reshape(-1, 1), (y + flow_y).reshape(-1, 1)
-
-#     # dilate the line mask
-#     line_mask = binary_dilation(line_mask, iterations=iterations)  # default=10
-
-#     return flow_x, flow_y, line_mask
-
-
-# def deform_2d(image2d, deformation_strength, iterations, randomseed):
-#     flow_x, flow_y, line_mask = prepare_deform_slice(
-#         image2d.shape, deformation_strength, iterations, randomseed)
-#     section = image2d.squeeze()
-#     mean = section.mean()
-#     shape = section.shape
-#     #interpolation=3
-#     section = map_coordinates(section, (flow_y, flow_x), mode='constant',
-#                               order=3).reshape(int(flow_x.shape[0]**0.5), int(flow_x.shape[0]**0.5))
-#     section = np.clip(section, 0., 1.)
-#     section[line_mask] = mean
-#     return section
-
-
-# def apply_deform(imgs, masks, deformation_strength=20, iterations=10, deform_ratio=0.08):
-#     '''
-#     imgs,masks :3D
-#     use same seed 
-#     '''
-#     transformedimgs, transformedmasks = {}, {}
-#     sectionsnum = imgs.shape[0]
-#     for i in range(sectionsnum):
-#         if random.random() <= deform_ratio:
-#             randomseed = np.random.randint(1000000)
-#             transformedimgs[i] = deform_2d(
-#                 imgs[i], deformation_strength, iterations, randomseed)
-#             transformedmasks[i] = deform_2d(
-#                 masks[i], deformation_strength, iterations, randomseed)
-#         else:
-#             transformedimgs[i] = imgs[i]
-#             transformedmasks[i] = masks[i]
-#     return transformedimgs, transformedmasks
-
-
 def prepare_deform_slice(slice_shape, deformation_strength, iterations):
     # grow slice shape by 2 x deformation strength
     grow_by = 2 * deformation_strength
@@ -771,9 +501,7 @@ def apply_deform(imgs, deformation_strength=0, iterations=50, deform_ratio=0.25)
 
 
 # simple elastic transform
-
 def elastic_transform(image, alpha, sigma, random_state=None):
-
     if random_state is None:
         random_state = np.random.RandomState(None)
     else:

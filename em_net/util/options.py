@@ -1,20 +1,26 @@
-import argparse
-from em_data.options import *
+import os,argparse
+import datetime
 
-def optResource(parser):
-    parser.add_argument('-g','--num-gpu', type=int,  default=1,
-                        help='number of gpu')
-    parser.add_argument('-c','--num-cpu', type=int,  default=1,
-                        help='number of cpu')
-    parser.add_argument('-b','--batch-size', type=int,  default=1,
-                        help='batch size')
+import numpy as np
+from em_dataLib.options import optIO, optDataAug
+
+def optSystem(parser):
+    parser.add_argument('-g', '--num-gpu', type=int, default=1,
+                        help='Number of CUDA-enabled graphics cards to be used to train the model.')
+    parser.add_argument('-j', '--num-procs', type=int, default=1,
+                        help='Number of processes to be used for the training data loader. The validation data loader' +
+                        'will use only one process to load.')
+    parser.add_argument('-bs', '--batch-size', type=int, default=1,
+                        help='Batch size.')
 
 def optTrain(parser):
+    # training loss
     parser.add_argument('-l','--loss-opt', type=int, default=0,
                         help='loss type')
     parser.add_argument('-lw','--loss-weight-opt', type=float, default=2.0,
                         help='weighted loss type')
-    parser.add_argument('-lr', type=float, default=0.0001,
+    # optimization
+    parser.add_argument('-lr', '--learning-rate', type=float, default=0.0001,
                         help='learning rate')
     parser.add_argument('-lr_decay', default='inv,0.0001,0.75',
                         help='learning rate decay')
@@ -22,14 +28,18 @@ def optTrain(parser):
                         help='beta for adam')
     parser.add_argument('-wd', type=float, default=5e-6,
                         help='weight decay')
-    parser.add_argument('--volume-total', type=int, default=1000,
-                        help='total number of iteration')
-    parser.add_argument('--volume-save', type=int, default=100,
-                        help='number of iteration to save')
-    parser.add_argument('-e', '--pre-epoch', type=int, default=0,
+    # pre-train
+    parser.add_argument('-pe', '--pre-epoch', type=int, default=0,
                         help='pre-train number of epoch')
-    parser.add_argument('-es','--snapshot',  default='',
-                        help='pre-train snapshot path')
+    parser.add_argument('-pm', '--pre-model', type=str, default='',
+                        help='Pre-trained model path')
+    # logging
+    parser.add_argument('--volume-total', type=int, default=70000,
+                        help='Total number of iteration')
+    parser.add_argument('--volume-save', type=int, default=10000,
+                        help='Number of iterations for the script to save the model.')
+    parser.add_argument('--volume-valid', type=int, default=1000,
+                        help='Number of iterations for the script to validate the model.')
 
 
 def optModel(parser):
@@ -47,56 +57,36 @@ def optModel(parser):
                         help='number of filters per layer')
     parser.add_argument('-ps', '--pad-size', type=int, default=0,
                         help='pad size')
-    parser.add_argument('-pt', '--pad-type', default='constant,0',
-                        help='pad type')
-    parser.add_argument('-bn', '--has-BN', type=int, default=0,
-                        help='use BatchNorm')
-    parser.add_argument('-rs', '--relu-slope', type=float, default=0.005,
-                        help='relu type')
     parser.add_argument('-do', '--has-dropout', type=float, default=0,
                         help='use dropout')
-    parser.add_argument('-it','--init', type=int,  default=-1,
+
+    parser.add_argument('-rs', '--relu-slope', type=float, default=0.005,
+                        help='relu type')
+    parser.add_argument('-bn', '--batch-mode', type=int, default=0,
+                        help='use BatchNorm')
+    parser.add_argument('-pt', '--pad-mode', default='constant,0',
+                        help='pad mode')
+    parser.add_argument('-it','--init-mode', type=int,  default=-1,
                         help='model initialization type')
 
-def optIO(parser, mode='train'):
-    if mode == 'train':
-        parser.add_argument('-dti', '--train-img', default='',
-                            help='input train image')
-        parser.add_argument('-dts', '--train-seg', default='',
-                            help='input train segmentation')
-        parser.add_argument('-dvi', '--val-img', default='',
-                            help='input validataion image')
-        parser.add_argument('-dvs', '--val-seg', default='',
-                            help='input validation segmentation')
-        # if h5
-        parser.add_argument('-dtid','--train-img-name',  default='main',
-                            help='dataset name in train image')
-        parser.add_argument('-dtsd','--train-seg-name',  default='main',
-                            help='dataset name in train segmentation')
-        parser.add_argument('-dvid','--val-img-name',  default='main',
-                            help='dataset name in validation image')
-        parser.add_argument('-dvsd','--val-seg-name',  default='main',
-                            help='dataset name in validation segmentation')
 
-    elif mode=='test':
-        parser.add_argument('-dei', '--test-img', default='',
-                            help='input test image')
-        parser.add_argument('-des', '--test-seg', default='',
-                            help='input test segmentation')
-        # if h5
-        parser.add_argument('-deid','--test-img-name',  default='main',
-                            help='dataset name in test image')
-        parser.add_argument('-desd','--test-seg-name',  default='main',
-                            help='dataset name in test segmentation')
-    parser.add_argument('-o','--output', default='result/train/',
-                        help='output path')
+def optParse(args):
+    # additional parsing
 
-def optDataAug(parser):
-    # reduce the number of input arguments by stacking into one string
-    parser.add_argument('-ao','--aug-opt', type=str,  default='1@-1@0@5',
-                        help='data aug type')
-    parser.add_argument('-apw','--aug-param-warp', type=str,  default='15@3@1.1@0.1',
-                        help='data warp aug parameter')
-    parser.add_argument('-apc','--aug-param-color', type=str,  default='0.95,1.05@-0.15,0.15@0.5,2@0,1',
-                        help='data color aug parameter')
+    # model input shape
+    if args.init_mode >= 0:
+        args.init_mode = ['kaiming_normal','kaiming_uniform','xavier_normal','xavier_uniform'][args.init_mode]
+    else:
+        args.init_mode = ''
+    # model input shape
+    args.input_shape = np.array([int(x) for x in args.input_shape.split(',')])
+
+    # output folder
+    tt = str(datetime.datetime.now()).split(' ')
+    date = tt[0]
+    time = tt[1].split('.')[0].replace(':','-')
+    args.output_dir += '/log_' + date + '_' + time
+    if not os.path.isdir(args.output_dir):
+        os.makedirs(args.output_dir)
+        print('Output directory was created.')
 

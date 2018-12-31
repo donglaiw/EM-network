@@ -2,69 +2,34 @@ import torch
 import math
 import torch.nn as nn
 import torch.nn.functional as F
-from em_net.libs.sync import SynchronizedBatchNorm1d, SynchronizedBatchNorm3d
+from em_net.model.block.basic import *
+from em_net.model.block.squeeze_excite import SELayerCS, SELayer
 
+# -- residual blocks--
+class resBlock_pni(nn.Module):
+    def __init__(self, in_planes, out_planes, is_3d=True, pad_mode='mode', bn_mode='', relu_mode='', init_mode=''):
+        super(resBlock_pni, self).__init__()
+        self.block1 = conv3dBlock([in_planes], [out_planes], [(1, 3, 3)], [1], [(0, 1, 1)],
+                                    [False], [pad_mode], [bn_mode], [relu_mode], init_mode)
+        # no relu for the second block
+        if is_3d:
+            self.block2 = conv3dBlock([out_planes] * 2, [out_planes] * 2, [(3, 3, 3)] * 2, [1] * 2, [(1, 1, 1)] * 2,
+                                        [False] * 2, [pad_mode] * 2, [bn_mode] * 2, [relu_mode, ''], init_mode)
+        else:  # a bit different due to bn-2D vs. bn-3D
+            self.block2 = conv3dBlock([out_planes] * 2, [out_planes] * 2, [(1, 3, 3)] * 2, [1] * 2, [(0, 1, 1)] * 2,
+                                        [False] * 2, [pad_mode] * 2,[bn_mode] * 2, [relu_mode, ''], init_mode)
+        self.block3 = getRelu(relu_mode)
 
-# -- 0. util layers--
-def merge_crop(x1, x2):
-    # x1 bigger
-    offset = [(x1.size()[x]-x2.size()[x])//2 for x in range(2, x1.dim())]
-    return torch.cat([x2, x1[:, :, offset[0]:offset[0]+x2.size(2),
-                          offset[1]:offset[1]+x2.size(3), offset[2]:offset[2]+x2.size(4)]], 1)
+    def forward(self, x):
+        residual = self.block1(x)
+        out = residual + self.block2(residual)
+        out = self.block3(out)
+        return out
 
-
-def merge_add(x1, x2):
-    # x1 bigger
-    offset = [(x1.size()[x]-x2.size()[x])//2 for x in range(2, x1.dim())]
-    return x2 + x1[:, :, offset[0]:offset[0]+x2.size(2), offset[1]:offset[1]+x2.size(3), offset[2]:offset[2]+x2.size(4)]
-
-
-# -- 1 conv blocks--
-def unet_m2_conv(in_num, out_num, kernel_size, pad_size, stride_size, has_bias, batch_norm, relu_opt):
-    layers = []
-    for i in range(len(in_num)):
-        layers.append(
-            nn.Conv3d(in_num[i], out_num[i], kernel_size=kernel_size[i], padding=pad_size[i], stride=stride_size[i],
-                      bias=has_bias[i]))
-        if batch_norm[i]:
-            layers.append(nn.BatchNorm3d(out_num[i]))
-        if relu_opt[i] == 0:
-            layers.append(nn.ReLU(inplace=True))
-        elif relu_opt[i] == 1:
-            layers.append(nn.ELU(inplace=True))
-    return nn.Sequential(*layers)
-
-
-def conv3d_pad(in_planes, out_planes, kernel_size=(3, 3, 3), stride=1, dilation=(1, 1, 1), padding=(1, 1, 1),
-               bias=False):
-    # the size of the padding should be a 6-tuple        
-    padding = tuple([x for x in padding for _ in range(2)][::-1])
-    return nn.Sequential(
-                nn.ReplicationPad3d(padding),
-                nn.Conv3d(in_planes, out_planes, kernel_size=kernel_size,
-                          stride=stride, padding=0, dilation=dilation, bias=bias))
-
-
-def conv3d_bn_non(in_planes, out_planes, kernel_size=(3, 3, 3), stride=1, dilation=(1, 1, 1), padding=(1, 1, 1),
-                  bias=False):
-    return nn.Sequential(
-            conv3d_pad(in_planes, out_planes, kernel_size, stride, dilation, padding, bias),
-            SynchronizedBatchNorm3d(out_planes))              
-
-
-def conv3d_bn_elu(in_planes, out_planes, kernel_size=(3, 3, 3), stride=1, dilation=(1, 1, 1), padding=(1, 1, 1),
-                  bias=False):
-    return nn.Sequential(
-            conv3d_pad(in_planes, out_planes, kernel_size, stride, dilation, padding, bias),
-            SynchronizedBatchNorm3d(out_planes),
-            nn.ELU(inplace=True))                                   
-
-
-# -- 2. residual blocks--
-class ResUNetIsoBlock(nn.Module):
+class resBlock_seIso(nn.Module):
     # Basic residual module of unet
     def __init__(self, in_planes, out_planes):
-        super(ResUNetIsoBlock, self).__init__()
+        super(resBlock_seIso, self).__init__()
         self.block1 = conv3d_bn_elu(in_planes, out_planes, kernel_size=(3, 3, 3), stride=1, padding=(1, 1, 1),
                                     bias=False)
         self.block2 = nn.Sequential(
@@ -79,10 +44,10 @@ class ResUNetIsoBlock(nn.Module):
         return out 
 
 
-class ResUNetAnisoBlockDilation(nn.Module):
+class resBlock_seAnisoDilation(nn.Module):
     # Basic residual module of unet
     def __init__(self, in_planes, out_planes):
-        super(ResUNetAnisoBlockDilation, self).__init__()
+        super(resBlock_seAnisoDilation, self).__init__()
         self.se_layer = SELayer(channel=out_planes, reduction=4)
         self.se_layer_sc = SELayerCS(channel=out_planes, reduction=4)
 
@@ -164,3 +129,18 @@ class SELayerCS(nn.Module):
         y = self.fc(y).view(b, c, 1, 1, 1)
         z = self.sc(x)
         return (x * y) + (x * z)    
+
+
+# -- merge layers--
+def merge_crop(x1, x2):
+    # x1 bigger
+    offset = [(x1.size()[x]-x2.size()[x])//2 for x in range(2, x1.dim())]
+    return torch.cat([x2, x1[:, :, offset[0]:offset[0]+x2.size(2),
+                          offset[1]:offset[1]+x2.size(3), offset[2]:offset[2]+x2.size(4)]], 1)
+
+def merge_add(x1, x2):
+    # x1 bigger
+    offset = [(x1.size()[x]-x2.size()[x])//2 for x in range(2, x1.dim())]
+    return x2 + x1[:, :, offset[0]:offset[0]+x2.size(2), offset[1]:offset[1]+x2.size(3), offset[2]:offset[2]+x2.size(4)]
+
+

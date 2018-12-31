@@ -9,32 +9,14 @@ import torch.utils.data
 from em_net.data import AffinityDataset, collate_fn_test
 from em_net.model.model_seg import UNet3DPniM2
 from em_net.libs.sync import DataParallelWithCallback
+from em_net.util.options import *
 
 
 def get_args():
     parser = argparse.ArgumentParser(
         description='Tests a previously trained PNI 3DUNet model for SNEMI affinity prediction.')
     # I/O
-    parser.add_argument('-tv', '--test-volume', default='test-input.h5',
-                        help='Path to the test volume .h5 file(s).')
-    parser.add_argument('-o', '--output', default='result/test/',
-                        help='Output directory used to save the prediction results as .h5 file(s). The directory is ' +
-                             'automatically created if already not created.')
-    parser.add_argument('-is', '--input-shape', type=str, default='18,160,160',
-                        help="Model's input size (shape) formatted 'z, y, x' with no channel number.")
-    parser.add_argument('-xp', '--x-pad', type=int, default=48,
-                        help="Number of voxels for mirror padding the x axis of the test volume. Required for " +
-                             "eliminating the gray grid on the edges of the prediction resulting from the Gaussian" +
-                             "blending. The volume will be padded by this amount on both ends.")
-    parser.add_argument('-yp', '--y-pad', type=int, default=48,
-                        help="Number of voxels for mirror padding the y axis of the test volume. Required for " +
-                             "eliminating the gray grid on the edges of the prediction resulting from the Gaussian" +
-                             "blending. The volume will be padded by this amount on both ends.")
-    parser.add_argument('-zp', '--z-pad', type=int, default=8,
-                        help="Number of voxels for mirror padding the z axis of the test volume. Required for " +
-                             "eliminating the gray grid on the edges of the prediction resulting from the Gaussian" +
-                             "blending. The volume will be padded by this amount on both ends.")
-
+    optIO(parser, 'test')
     # machine option
     parser.add_argument('-g', '--num-gpu', type=int, default=1,
                         help='Number of CUDA capable GPUs used for testing the model. Must be positive.')
