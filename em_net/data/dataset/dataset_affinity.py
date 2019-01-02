@@ -49,10 +49,12 @@ class AffinityDataset(BaseDataset):
             if self.augmentor is not None:  # augmentation
                 #out_input, out_label = self.augmentor([out_input, out_label])
                 out_input, out_label = self.simple_aug.multi_mask([out_input, out_label])
+                """
                 if random.random() > 0.5:
                     out_input, out_label = apply_elastic_transform(out_input, out_label)
                 if random.random() > 0.75:
                     out_input = self.intensity_aug.augment(out_input)
+                """
 
         # Test Mode Specific Operations:
         elif self.mode == 'test':

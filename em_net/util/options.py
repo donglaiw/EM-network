@@ -60,10 +60,10 @@ def optModel(parser):
     parser.add_argument('-do', '--has-dropout', type=float, default=0,
                         help='use dropout')
 
-    parser.add_argument('-rs', '--relu-slope', type=float, default=0.005,
-                        help='relu type')
+    parser.add_argument('-rl', '--relu-mode', type=float, default=0.005,
+                        help='relu mode')
     parser.add_argument('-bn', '--batch-mode', type=int, default=0,
-                        help='use BatchNorm')
+                        help='BatchNorm mode')
     parser.add_argument('-pt', '--pad-mode', default='constant,0',
                         help='pad mode')
     parser.add_argument('-it','--init-mode', type=int,  default=-1,

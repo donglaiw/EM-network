@@ -7,6 +7,7 @@ import argparse
 import torch
 import torch.utils.data
 import torchvision.utils as vutils
+import gc
 
 # tensorboardX
 from tensorboardX import SummaryWriter
@@ -150,6 +151,13 @@ def train(args, train_loader, validation_loader, model, device, criterion, optim
         loss.backward()
         optimizer.step()
 
+        """
+        writer.add_scalar('Train Loss', loss.item(), volume_id)
+        writer.add_image('Train Input', vutils.make_grid(volume[:,0,volume.shape[2]//2:volume.shape[2]//2+1]), volume_id)
+        writer.add_image('Train Output', vutils.make_grid(output[:,1,volume.shape[2]//2:volume.shape[2]//2+1]), volume_id)
+        writer.add_image('Train Label', vutils.make_grid(label[:,1,volume.shape[2]//2:volume.shape[2]//2+1]), volume_id)
+        """
+
         print("[Volume %d] train_loss=%0.4f lr=%.5f\n" % (volume_id, loss.item(), optimizer.param_groups[0]['lr']))
 
         writer.add_scalar('Training Loss', loss.item(), volume_id)
@@ -167,9 +175,9 @@ def train(args, train_loader, validation_loader, model, device, criterion, optim
             loss = criterion(output, label, class_weight)
 
             writer.add_scalar('Validation Loss', loss.item(), volume_id)
-            writer.add_image('Validation Input', vutils.make_grid(volume[:,0,:1]), volume_id)
-            writer.add_image('Validation Output', vutils.make_grid(output[:,1,:1]), volume_id)
-            writer.add_image('Validation Label', vutils.make_grid(label[:,0,:1]), volume_id)
+            writer.add_image('Validation Input', vutils.make_grid(volume[:,0,volume.shape[2]//2:volume.shape[2]//2+1]), volume_id)
+            writer.add_image('Validation Output', vutils.make_grid(output[:,1,volume.shape[2]//2:volume.shape[2]//2+1]), volume_id)
+            writer.add_image('Validation Label', vutils.make_grid(label[:,0,volume.shape[2]//2:volume.shape[2]//2+1]), volume_id)
             logger.write("validation_loss=%0.4f lr=%.5f\n" % (loss.item(), optimizer.param_groups[0]['lr']))
 
             model.train()
@@ -178,6 +186,10 @@ def train(args, train_loader, validation_loader, model, device, criterion, optim
             # Save the model if it's time.
             print("Saving the model in {}....".format(args.output + ('/volume_%d_%f.pth' % (volume_id, loss))))
             torch.save(model.state_dict(), args.output + ('/volume_%d_%f.pth' % (volume_id, loss)))
+        
+        del volume, label
+        gc.collect()
+
         # Terminate
         if volume_id >= args.volume_total:
             break  #

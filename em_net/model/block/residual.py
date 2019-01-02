@@ -7,23 +7,21 @@ from em_net.model.block.squeeze_excite import SELayerCS, SELayer
 
 # -- residual blocks--
 class resBlock_pni(nn.Module):
-    def __init__(self, in_planes, out_planes, is_3d=True, pad_mode='mode', bn_mode='', relu_mode='', init_mode=''):
+    # https://github.com/torms3/Superhuman/blob/torch-0.4.0/code/rsunet.py#L145
+    def __init__(self, in_planes, out_planes, pad_mode='zero', bn_mode='', relu_mode='', init_mode='', bn_momentum=0.1):
         super(resBlock_pni, self).__init__()
-        self.block1 = conv3dBlock([in_planes], [out_planes], [(1, 3, 3)], [1], [(0, 1, 1)],
-                                    [False], [pad_mode], [bn_mode], [relu_mode], init_mode)
+        self.block1 = conv3dBlock([in_planes], [out_planes], [(3, 3, 3)], [1], [(1, 1, 1)],
+                                    [False], [pad_mode], [bn_mode], [relu_mode], init_mode, bn_momentum)
         # no relu for the second block
-        if is_3d:
-            self.block2 = conv3dBlock([out_planes] * 2, [out_planes] * 2, [(3, 3, 3)] * 2, [1] * 2, [(1, 1, 1)] * 2,
-                                        [False] * 2, [pad_mode] * 2, [bn_mode] * 2, [relu_mode, ''], init_mode)
-        else:  # a bit different due to bn-2D vs. bn-3D
-            self.block2 = conv3dBlock([out_planes] * 2, [out_planes] * 2, [(1, 3, 3)] * 2, [1] * 2, [(0, 1, 1)] * 2,
-                                        [False] * 2, [pad_mode] * 2,[bn_mode] * 2, [relu_mode, ''], init_mode)
-        self.block3 = getRelu(relu_mode)
+        self.block2 = conv3dBlock([out_planes]*2, [out_planes]*2, [(3, 3, 3)]*2, [1]*2, [(1, 1, 1)]*2,
+                                    [False] * 2, [pad_mode] * 2, [bn_mode, ''], [relu_mode, ''], init_mode, bn_momentum)
+        self.block3 = getBN(out_planes, 3, bn_mode, bn_momentum)
+        self.block4 = getRelu(relu_mode)
 
     def forward(self, x):
         residual = self.block1(x)
         out = residual + self.block2(residual)
-        out = self.block3(out)
+        out = self.block4(self.block3(out))
         return out
 
 class resBlock_seIso(nn.Module):
