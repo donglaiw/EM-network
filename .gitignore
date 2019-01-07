@@ -115,3 +115,8 @@ cmd
 
 # result folder
 result/
+
+# tmp files
+*~
+*.swp
+*.swo
