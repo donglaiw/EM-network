@@ -42,8 +42,7 @@ def init_conv(m, init_mode):
             nn.init.xavier_normal_(m.weight)
         elif init_mode == 'xavier_uniform':
             nn.init.xavier_uniform_(m.weight)
-        else:
-            raise ValueError('Unknown initialization option {}'.format(init_mode))
+
         if m.bias is not None:
             nn.init.constant_(m.bias, 0)
 
@@ -76,7 +75,7 @@ def getRelu(mode='relu'):
         return nn.LeakyReLU(inplace=True, negative_slope=float(mode[5:]))
     raise ValueError('Unknown ReLU option {}'.format(mode))
 
-def getBN(out_planes, dim=1, mode='single', bn_momentum=0.1):
+def getBN(out_planes, dim=1, mode='sync', bn_momentum=0.1):
     if mode == 'async':
         if dim == 1:
             return nn.BatchNorm1d(out_planes, momentum=bn_momentum)
@@ -91,7 +90,7 @@ def getBN(out_planes, dim=1, mode='single', bn_momentum=0.1):
             return nn.SynchronizedBatchNorm2d(out_planes, momentum=bn_momentum)
         elif dim == 3:
             return nn.SynchronizedBatchNorm3d(out_planes, momentum=bn_momentum)
-    raise ValueError('Unknown BatchNorm option: '+str(bn_mode))
+    raise ValueError('Unknown BatchNorm option: '+str(mode))
 
 def conv3dBlock(in_planes, out_planes, kernel_size=[(3,3,3)], stride=[1], padding=[0], bias=[True], pad_mode=['zero'], bn_mode=[''], relu_mode=[''], init_mode='kaiming_normal', bn_momentum=0.1, dilation_size=None):
     # easy to make VGG style layers

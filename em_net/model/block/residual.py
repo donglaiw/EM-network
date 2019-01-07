@@ -16,12 +16,17 @@ class resBlock_pni(nn.Module):
         self.block2 = conv3dBlock([out_planes]*2, [out_planes]*2, [(3, 3, 3)]*2, [1]*2, [(1, 1, 1)]*2,
                                     [False] * 2, [pad_mode] * 2, [bn_mode, ''], [relu_mode, ''], init_mode, bn_momentum)
         self.block3 = getBN(out_planes, 3, bn_mode, bn_momentum)
-        self.block4 = getRelu(relu_mode)
+        
+        self.block4 = None
+        if relu_mode!='':
+            self.block4 = getRelu(relu_mode)
 
     def forward(self, x):
         residual = self.block1(x)
         out = residual + self.block2(residual)
-        out = self.block4(self.block3(out))
+        out = self.block3(out)
+        if self.block4 is not None:
+            out = self.block4(out)
         return out
 
 class resBlock_seIso(nn.Module):

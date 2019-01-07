@@ -24,6 +24,18 @@ def optTrain(parser):
                         help='learning rate')
     parser.add_argument('-lr_decay', default='inv,0.0001,0.75',
                         help='learning rate decay')
+
+    parser.add_argument('-lr_halve_bin', default=3, type=int,
+                        help='number of validation pts for one bin')
+    parser.add_argument('-lr_halve_wait', default=5, type=int,
+                        help='number of validation pts for one bin')
+    parser.add_argument('-lr_halve_thres', default=0.95, type=float,
+                        help='number of validation pts for one bin')
+    parser.add_argument('-lr_halve_time', default=4, type=int,
+                        help='number of validation pts for one bin')
+    parser.add_argument('-lr_halve_max', default=100, type=int,
+                        help='number of validation pts for one bin')
+
     parser.add_argument('-betas', default='0.99,0.999',
                         help='beta for adam')
     parser.add_argument('-wd', type=float, default=5e-6,
@@ -34,7 +46,7 @@ def optTrain(parser):
     parser.add_argument('-pm', '--pre-model', type=str, default='',
                         help='Pre-trained model path')
     # logging
-    parser.add_argument('--volume-total', type=int, default=70000,
+    parser.add_argument('--volume-total', type=int, default=500000,
                         help='Total number of iteration')
     parser.add_argument('--volume-save', type=int, default=10000,
                         help='Number of iterations for the script to save the model.')
@@ -57,29 +69,51 @@ def optModel(parser):
                         help='number of filters per layer')
     parser.add_argument('-ps', '--pad-size', type=int, default=0,
                         help='pad size')
-    parser.add_argument('-do', '--has-dropout', type=float, default=0,
+    parser.add_argument('-mdo', '--has-dropout', type=float, default=0,
                         help='use dropout')
 
-    parser.add_argument('-rl', '--relu-mode', type=float, default=0.005,
+    parser.add_argument('-rl', '--relu-mode', type=int, default=0,
                         help='relu mode')
-    parser.add_argument('-bn', '--batch-mode', type=int, default=0,
-                        help='BatchNorm mode')
+    parser.add_argument('-rls', '--relu-param', type=float, default=0.005,
+                        help='relu parameter')
+    parser.add_argument('-bn', '--bn-mode', type=int, default=0,
+                        help='batchnorm mode')
     parser.add_argument('-pt', '--pad-mode', default='constant,0',
                         help='pad mode')
-    parser.add_argument('-it','--init-mode', type=int,  default=-1,
+    parser.add_argument('-it','--init-mode', type=int,  default=0,
                         help='model initialization type')
+    parser.add_argument('-dr','--decode-ratio', type=float,  default=1.0,
+                        help='ratio of number of filters in decoder over encoder')
 
 
 def optParse(args):
     # additional parsing
 
-    # model input shape
-    if args.init_mode >= 0:
-        args.init_mode = ['kaiming_normal','kaiming_uniform','xavier_normal','xavier_uniform'][args.init_mode]
+    ## dataset parameters
+    args.input_vol = args.input_vol.split('@')
+    args.label_vol = args.label_vol.split('@')
+    if args.data_chunk=='':
+        args.data_chunk = None
     else:
-        args.init_mode = ''
+        args.data_chunk = [[int(y) for y in x.split('_')] for x in args.data_chunk.split('@')]
+
+    num_dset = len(args.input_vol)
+    args.train_ratio = [float(x) for x in args.train_ratio.split('@')]
+    if len(args.train_ratio)==1:
+        args.train_ratio = args.train_ratio*num_dset
+
+    args.invalid_mask = [float(x) for x in args.invalid_mask.split('@')]
+    if len(args.invalid_mask)==1:
+        args.invalid_mask = args.invalid_mask*num_dset
+
+
+    ## model design choices
+    args.init_mode = ['','kaiming_normal','kaiming_uniform','xavier_normal','xavier_uniform'][args.init_mode]
+    args.bn_mode = ['','async','sync'][args.bn_mode]
+    args.relu_mode = ['','relu','elu','leakyrelu'][args.relu_mode]
+
     # model input shape
-    args.input_shape = np.array([int(x) for x in args.input_shape.split(',')])
+    args.data_shape = np.array([int(x) for x in args.data_shape.split(',')])
 
     # output folder
     tt = str(datetime.datetime.now()).split(' ')

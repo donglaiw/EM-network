@@ -37,14 +37,17 @@ class AffinityDataset(BaseDataset):
 
     def __getitem__(self, index):
         vol_size = self.sample_input_size
+        invalid_mask = None
 
         # Train Mode Specific Operations:
         if self.mode == 'train':
-            seed = np.random.RandomState(index)
-            pos = self.get_pos_seed(vol_size, seed)
             # 2. get input volume
-            out_input = crop_volume(self.input[pos[0]], vol_size, pos[1:])
+            seed = np.random.RandomState(index)
+            # if elastic deformation: need different receptive field
+            # change vol_size first
+            pos = self.get_pos_seed(vol_size, seed)
             out_label = crop_volume(self.label[pos[0]], vol_size, pos[1:])
+            out_input = crop_volume(self.input[pos[0]], vol_size, pos[1:])
             # 3. augmentation
             if self.augmentor is not None:  # augmentation
                 #out_input, out_label = self.augmentor([out_input, out_label])
@@ -64,8 +67,13 @@ class AffinityDataset(BaseDataset):
             out_label = None if self.label is None else crop_volume(self.label[pos[0]], vol_size, pos[1:])
         # Turn segmentation label into affinity in Pytorch Tensor
         if out_label is not None:
+            # check for invalid region (-1)
+            seg_bad = np.array([-1]).astype(out_label.dtype)[0]
+            invalid_mask = out_label==seg_bad
+            out_label[out_label==seg_bad] = 0
             out_label = genSegMalis(out_label, 1)
-            out_label = seg_to_affgraph(out_label, mknhood3d(1)).astype(np.float32)
+            # replicate-pad the aff boundary
+            out_label = seg_to_affgraph(out_label, mknhood3d(1), pad='replicate').astype(np.float32)
             out_label = torch.from_numpy(out_label.copy())
 
         # Turn input to Pytorch Tensor, unsqueeze once to include the channel dimension:
@@ -79,6 +87,7 @@ class AffinityDataset(BaseDataset):
             weight_factor = out_label.float().sum() / torch.prod(torch.tensor(out_label.size()).float())
             weight_factor = torch.clamp(weight_factor, min=1e-3)
             weight = out_label*(1-weight_factor)/weight_factor + (1-out_label)
-            ww = torch.Tensor(gaussian_blend(vol_size, 0.9))
-            weight = weight * ww
+            if invalid_mask is not None: # apply to all channel
+                weight = weight * torch.Tensor(np.tile(invalid_mask[None].astype(np.uint8),(3,1,1,1)))
+            weight = weight * torch.Tensor(gaussian_blend(vol_size, 0.9))
         return pos, out_input, out_label, weight, weight_factor

@@ -25,19 +25,15 @@ class BaseDataset(torch.utils.data.Dataset):
                  sample_label_size=None,
                  sample_stride=(1, 1, 1),
                  augmentor=None,
+                 label_invalid = None,
                  mode='train'):
 
         self.mode = mode
-        # for partially labeled data
-        # m1 (no): sample chunks with over certain percentage
-        #   = online version: rejection sampling can be slow
-        #   = offline version: need to keep track of the mask
-        # self.label_ratio = label_ratio
-        # m2: make sure the center is labeled
 
         # data format
         self.input = volume
         self.label = label
+        self.label_invalid = label_mask
         self.augmentor = augmentor  # data augmentation
 
         # samples, channels, depths, rows, cols
@@ -52,21 +48,12 @@ class BaseDataset(torch.utils.data.Dataset):
         # total number of possible inputs for each volume
         self.sample_num = np.array([np.prod(x) for x in self.sample_size])
         # check partial label
-        self.label_invalid = [False]*len(self.sample_num)
-        if self.label is not None:
-            for i in range(len(self.sample_num)):
-                seg_id = np.array([-1]).astype(self.label[i].dtype)[0]
-                seg = self.label[i][sample_label_size[0]//2:-sample_label_size[0]//2,\
-                                    sample_label_size[1]//2:-sample_label_size[1]//2,\
-                                    sample_label_size[2]//2:-sample_label_size[2]//2]
-
-                if np.any(seg == seg_id):
-                    print('dataset %d: needs mask for invalid region'%(i))
-                    self.label_invalid[i] = True
-                    self.sample_num[i] = np.count_nonzero(seg != seg_id)
+        if label is not None and label_par:
 
         self.sample_num_a = np.sum(self.sample_num)
         self.sample_num_c = np.cumsum([0] + list(self.sample_num))
+        # print(self.sample_num_c)
+        assert self.sample_num_c[-1] == self.sample_num_a
 
         '''
         Image augmentation
@@ -134,15 +121,7 @@ class BaseDataset(torch.utils.data.Dataset):
         pos[0] = did
         # pick a position
         tmp_size = count_volume(self.input_size[did], vol_size, np.array(self.sample_stride))
-        tmp_pos = [np.random.randint(tmp_size[x]) for x in range(len(tmp_size))]
-        if self.label_invalid[did]:
-            # need to make sure the center is valid
-            seg_bad = np.array([-1]).astype(self.label[did].dtype)[0]
-            while self.label[did][tmp_pos[0]+vol_size[0]//2,\
-                                  tmp_pos[1]+vol_size[1]//2,\
-                                  tmp_pos[2]+vol_size[2]//2] != seg_bad:
-                tmp_pos = [np.random.randint(tmp_size[x]) for x in range(len(tmp_size))]
-        pos[1:] = tmp_pos 
+        pos[1:] = [np.random.randint(tmp_size[x]) for x in range(len(tmp_size))]
         return pos
 
 

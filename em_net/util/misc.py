@@ -6,7 +6,7 @@ import os
 
 from subprocess import check_output
 
-# 3. evaluation
+# evaluation
 def runBash(cmd):
     fn = '/tmp/tmp_'+str(random.random())[2:]+'.sh'
     print('tmp bash file:',fn)
