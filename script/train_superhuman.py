@@ -126,10 +126,14 @@ def train(args, train_loader, validation_loader, model, device, criterion, optim
         optimizer.step()
 
         """
-        if volume_id % args.volume_valid < args.batch_size or volume_id >= args.volume_total:
-            writer.add_image('Train Input', vutils.make_grid(volume[:,0,volume.shape[2]//2:volume.shape[2]//2+1]), volume_id)
-            writer.add_image('Train Output', vutils.make_grid(output[:,1,volume.shape[2]//2:volume.shape[2]//2+1]), volume_id)
-            writer.add_image('Train Label', vutils.make_grid(label[:,1,volume.shape[2]//2:volume.shape[2]//2+1]), volume_id)
+        if True: #volume_id % args.volume_valid < args.batch_size or volume_id >= args.volume_total:
+            writer.add_image('Train Input', vutils.make_grid(volume.data.cpu()[:,0,volume.shape[2]//2:volume.shape[2]//2+1]), volume_id)
+            writer.add_image('Train Output', vutils.make_grid(output.data.cpu()[:,1,volume.shape[2]//2:volume.shape[2]//2+1]), volume_id)
+            writer.add_image('Train Label', vutils.make_grid(label.data.cpu()[:,1,volume.shape[2]//2:volume.shape[2]//2+1]), volume_id)
+            writer.add_image('Train Weight', vutils.make_grid(class_weight.data.cpu()[:,1,volume.shape[2]//2:volume.shape[2]//2+1]==0), volume_id)
+            # from scipy.misc import imsave
+            # imsave('hh.png', np.clip(class_weight.data.cpu().numpy()[1,1,0]*255,0,255).astype(np.uint8))
+            import pdb; pdb.set_trace()
         """
 
         print("[Volume %d] train_loss=%0.4f lr=%.5f" % (volume_id, loss.item(), optimizer.param_groups[0]['lr']))

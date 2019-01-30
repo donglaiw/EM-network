@@ -138,9 +138,10 @@ class BaseDataset(torch.utils.data.Dataset):
         if self.label_invalid[did]:
             # need to make sure the center is valid
             seg_bad = np.array([-1]).astype(self.label[did].dtype)[0]
+            #print(seg_bad,self.label[did][tmp_pos[0]+vol_size[0]//2,tmp_pos[1]+vol_size[1]//2,tmp_pos[2]+vol_size[2]//2])
             while self.label[did][tmp_pos[0]+vol_size[0]//2,\
                                   tmp_pos[1]+vol_size[1]//2,\
-                                  tmp_pos[2]+vol_size[2]//2] != seg_bad:
+                                  tmp_pos[2]+vol_size[2]//2] == seg_bad:
                 tmp_pos = [np.random.randint(tmp_size[x]) for x in range(len(tmp_size))]
         pos[1:] = tmp_pos 
         return pos

@@ -22,18 +22,18 @@ def optTrain(parser):
     # optimization
     parser.add_argument('-lr', '--learning-rate', type=float, default=0.0001,
                         help='learning rate')
-    parser.add_argument('-lr_decay', default='inv,0.0001,0.75',
+    parser.add_argument('-lrd', default='inv,0.0001,0.75',
                         help='learning rate decay')
 
-    parser.add_argument('-lr_halve_bin', default=3, type=int,
+    parser.add_argument('-lrhb', '--lr-halve-bin', default=3, type=int,
                         help='number of validation pts for one bin')
-    parser.add_argument('-lr_halve_wait', default=5, type=int,
+    parser.add_argument('-lrhw', '--lr-halve-wait', default=5, type=int,
                         help='number of validation pts for one bin')
-    parser.add_argument('-lr_halve_thres', default=0.95, type=float,
+    parser.add_argument('-lrhr', '--lr-halve-thres', default=0.95, type=float,
                         help='number of validation pts for one bin')
-    parser.add_argument('-lr_halve_time', default=4, type=int,
+    parser.add_argument('-lrht', '--lr-halve-time', default=4, type=int,
                         help='number of validation pts for one bin')
-    parser.add_argument('-lr_halve_max', default=100, type=int,
+    parser.add_argument('-lrhm', '--lr-halve-max', default=100, type=int,
                         help='number of validation pts for one bin')
 
     parser.add_argument('-betas', default='0.99,0.999',
