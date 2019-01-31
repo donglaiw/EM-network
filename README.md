@@ -3,13 +3,18 @@
 
 ## Installation
 
+* Download and install [Anaconda](https://www.anaconda.com/download/) (Python 3.6 version).
+* Create and activate a new conda environment
+```
+conda create -n xx python=3.6
+source activate xx
+```
 * Clone and build repositories: 
 ```
 git clone --recursive https://github.com/donglaiw/EM-network.git
 git clone --recursive https://github.com/donglaiw/EM-dataLib.git
 git clone --recursive https://github.com/donglaiw/EM-segLib.git
 ```
-* Download and install [Anaconda](https://www.anaconda.com/download/) (Python 3.6 version).
 * Create a conda environment :  `conda env create -f enviroment.yml`
 
 =======
