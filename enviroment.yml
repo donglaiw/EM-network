@@ -1,4 +1,4 @@
-name: py3_pytorch
+name: em-net_py3
 channels:
   - conda-forge
   - defaults
