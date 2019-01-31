@@ -4,10 +4,10 @@
 ## Installation
 
 * Download and install [Anaconda](https://www.anaconda.com/download/) (Python 3.6 version).
-* Create and activate a new conda environment
+* Create and activate a new conda environment (env name can be changed in environment.yml)
 ```
-conda env create -n AAA -f enviroment.yml
-source activate AAA
+conda env create -f environment.yml
+source activate em-net_py3
 ```
 * Clone and build repositories: 
 ```
