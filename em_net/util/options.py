@@ -86,35 +86,26 @@ def optModel(parser):
                         help='ratio of number of filters in decoder over encoder')
 
 
-def optParse(args):
+def optParse(args, mode='train'):
     # additional parsing
+    
+    if mode=='train':
+        ## dataset parameters
+        args.input_vol = args.input_vol.split('@')
+        args.label_vol = args.label_vol.split('@')
+        if args.data_chunk=='':
+            args.data_chunk = None
+        else:
+            args.data_chunk = [[int(y) for y in x.split('_')] for x in args.data_chunk.split('@')]
 
-    ## dataset parameters
-    args.input_vol = args.input_vol.split('@')
-    args.label_vol = args.label_vol.split('@')
-    if args.data_chunk=='':
-        args.data_chunk = None
-    else:
-        args.data_chunk = [[int(y) for y in x.split('_')] for x in args.data_chunk.split('@')]
+        num_dset = len(args.input_vol)
+        args.train_ratio = [float(x) for x in args.train_ratio.split('@')]
+        if len(args.train_ratio)==1:
+            args.train_ratio = args.train_ratio*num_dset
 
-    num_dset = len(args.input_vol)
-    args.train_ratio = [float(x) for x in args.train_ratio.split('@')]
-    if len(args.train_ratio)==1:
-        args.train_ratio = args.train_ratio*num_dset
-
-    args.invalid_mask = [float(x) for x in args.invalid_mask.split('@')]
-    if len(args.invalid_mask)==1:
-        args.invalid_mask = args.invalid_mask*num_dset
-
-
-    ## model design choices
-    args.init_mode = ['','kaiming_normal','kaiming_uniform','xavier_normal','xavier_uniform'][args.init_mode]
-    args.bn_mode = ['','async','sync'][args.bn_mode]
-    args.relu_mode = ['','relu','elu','leakyrelu'][args.relu_mode]
-
-    # model input shape
-    args.data_shape = np.array([int(x) for x in args.data_shape.split(',')])
-
+        args.invalid_mask = [float(x) for x in args.invalid_mask.split('@')]
+        if len(args.invalid_mask)==1:
+            args.invalid_mask = args.invalid_mask*num_dset
     # output folder
     tt = str(datetime.datetime.now()).split(' ')
     date = tt[0]
@@ -124,3 +115,10 @@ def optParse(args):
         os.makedirs(args.output_dir)
         print('Output directory was created.')
 
+    ## model design choices
+    args.init_mode = ['','kaiming_normal','kaiming_uniform','xavier_normal','xavier_uniform'][args.init_mode]
+    args.bn_mode = ['','async','sync'][args.bn_mode]
+    args.relu_mode = ['','relu','elu','leakyrelu'][args.relu_mode]
+
+    # model input shape
+    args.data_shape = np.array([int(x) for x in args.data_shape.split(',')])
