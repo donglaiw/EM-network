@@ -2,7 +2,7 @@ import torch
 import math
 import torch.nn as nn
 import torch.nn.functional as F
-from em_net.libs.sync import SynchronizedBatchNorm1d, SynchronizedBatchNorm3d
+from em_net.libs.sync import SynchronizedBatchNorm1d, SynchronizedBatchNorm2d, SynchronizedBatchNorm3d
 
 # handy combination of existing modules
 
@@ -61,7 +61,7 @@ def getConv3d(in_planes, out_planes, kernel_size, stride, padding,
     if len(out)==0: 
         raise ValueError('Unknown padding option {}'.format(mode))
     else:
-        if len(init_mode)>0: # do conv init
+        if init_mode!='': # do conv init
             init_conv(out[-1], init_mode)
         return out
 
@@ -85,11 +85,11 @@ def getBN(out_planes, dim=1, mode='sync', bn_momentum=0.1):
             return nn.BatchNorm3d(out_planes, momentum=bn_momentum)
     elif mode == 'sync':
         if dim == 1:
-            return nn.SynchronizedBatchNorm1d(out_planes, momentum=bn_momentum)
+            return SynchronizedBatchNorm1d(out_planes, momentum=bn_momentum)
         elif dim == 2:
-            return nn.SynchronizedBatchNorm2d(out_planes, momentum=bn_momentum)
+            return SynchronizedBatchNorm2d(out_planes, momentum=bn_momentum)
         elif dim == 3:
-            return nn.SynchronizedBatchNorm3d(out_planes, momentum=bn_momentum)
+            return SynchronizedBatchNorm3d(out_planes, momentum=bn_momentum)
     raise ValueError('Unknown BatchNorm option: '+str(mode))
 
 def conv3dBlock(in_planes, out_planes, kernel_size=[(3,3,3)], stride=[1], padding=[0], bias=[True], pad_mode=['zero'], bn_mode=[''], relu_mode=[''], init_mode='kaiming_normal', bn_momentum=0.1, dilation_size=None):
@@ -100,9 +100,9 @@ def conv3dBlock(in_planes, out_planes, kernel_size=[(3,3,3)], stride=[1], paddin
     for i in range(len(in_planes)):
         if in_planes[i]>0:
             layers += getConv3d(in_planes[i], out_planes[i], kernel_size[i], stride[i], padding[i], bias[i], pad_mode[i], init_mode, dilation_size[i])
-        if len(bn_mode[i])>0:
+        if bn_mode[i] != '':
             layers.append(getBN(out_planes[i], 3, bn_mode[i], bn_momentum))
-        if len(relu_mode[i])>0:
+        if relu_mode[i] != '':
             layers.append(getRelu(relu_mode[i]))
     return nn.Sequential(*layers)
 

@@ -22,18 +22,27 @@ def save_checkpoint(model, filename='checkpoint.pth', optimizer=None, epoch=1):
 
 def convert_state_dict(state_dict, num_gpu):
     # multi-single gpu conversion
-    if num_gpu==1 and state_dict.keys()[0][:7]=='module.':
+    if num_gpu==1 and list(state_dict.keys())[0][:7]=='module.':
         # modify the saved model for single GPU
+        tobe_popped = []
+        # Should not modify state_dict during iteration
+        # otherwise will have erderedDict mutated during iteration
         for k,v in state_dict.items():
-            state_dict[k[7:]] = state_dict.pop(k,None)
-    elif num_gpu>1 and (len(state_dict.keys()[0])<7 or state_dict.keys()[0][:7]!='module.'):
+            tobe_popped.append(k)
+        for k in tobe_popped:
+            state_dict[k[7:]] = state_dict[k]
+            state_dict.pop(k,None)            
+    elif num_gpu>1 and (len(list(state_dict.keys())[0])<7 or list(state_dict.keys())[0][:7]!='module.'):
         # modify the single gpu model for multi-GPU
+        tobe_popped = []
         for k,v in state_dict.items():
-            state_dict['module.'+k] = v
+            tobe_popped.append(k)
+        for k in tobe_popped:
+            state_dict['module.'+k] = state_dict[k]
             state_dict.pop(k,None)
 
 def load_checkpoint(snapshot, num_gpu=1):
-    if isinstance(snapshot, basestring):
+    if isinstance(snapshot, str):
         cp = torch.load(snapshot)
         if type(cp) is not dict:
             # model -> state_dict

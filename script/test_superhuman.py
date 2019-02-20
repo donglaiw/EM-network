@@ -1,4 +1,5 @@
-import os
+import os, sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import h5py
 import time
@@ -6,8 +7,9 @@ import argparse
 
 import torch
 import torch.utils.data
-from em_net.data import AffinityDataset, collate_fn_test
-from em_net.model.model_seg import UNet3DPniM2
+from em_net.data.dataset import AffinityDataset, collate_fn_test
+from em_net.model.io import load_checkpoint
+from em_net.model.unet import UNet_PNI
 from em_net.libs.sync import DataParallelWithCallback
 from em_net.util.options import *
 
@@ -17,6 +19,8 @@ def get_args():
         description='Tests a previously trained PNI 3DUNet model for SNEMI affinity prediction.')
     # I/O
     optIO(parser, 'test')
+
+    optModel(parser)
     # machine option
     parser.add_argument('-g', '--num-gpu', type=int, default=1,
                         help='Number of CUDA capable GPUs used for testing the model. Must be positive.')
@@ -24,9 +28,10 @@ def get_args():
                         help="Number of processes used with Pytorch's dataloader class.")
     parser.add_argument('-b', '--batch-size', type=int, default=1,
                         help='Batch size.')
-    parser.add_argument('-m', '--model', help='Path of the model used for testing.')
+    parser.add_argument('-ml', '--model', help='Path of the model used for testing.')
 
     args = parser.parse_args()
+    optParse(args, mode='test')
     return args
 
 
@@ -35,7 +40,7 @@ def check_output(args):
     Checks whether the output directory exists. If not, creates it.
     """
     # Create the output directory before writing into it.
-    sn = args.output + '/'
+    sn = args.output_dir + '/'
     if not os.path.isdir(sn):
         os.makedirs(sn)
         print('Output directory was created.')
@@ -49,7 +54,8 @@ def get_preferred_device(args):
 
 
 def get_model_input_shape(args):
-    shape = np.array([int(x) for x in args.input_shape.split(',')])
+    #shape = np.array([int(x) for x in args.input_shape.split(',')])
+    shape = args.data_shape
     print("Model Shape: {}.".format(shape))
     return shape
 
@@ -70,7 +76,7 @@ def load_volumes(args, model_input_size):
     # original image is in [0, 255], normalize to [0, 1]
     print("Loading volumes...")
     for i in range(len(in_path)):
-        test_input[i] = np.array(h5py.File(in_path[i], 'r')['main']) / 255.0
+        test_input[i] = np.array(h5py.File(in_path[i], 'r')['main']).astype(np.float32) / 255.0
         test_input[i] = np.pad(test_input[i], [[z_pad, z_pad], [y_pad, y_pad], [x_pad, x_pad]], 'reflect')
         print("Loaded {}.".format(in_path[i]))
         print("Volume shape: {}".format(test_input[i].shape))
@@ -81,9 +87,9 @@ def load_volumes(args, model_input_size):
         print("Result shape: {}.".format(result[i].shape))
         print("Weight shape: {}.".format(weight[i].shape))
 
-    dataset = AffinityDataset(volume=test_input, label=None, vol_input_size=model_input_size,
-                              vol_label_size=None, sample_stride=model_input_size / 2,
-                              data_aug=None, mode='test')
+    dataset = AffinityDataset(volume=test_input, label=None, sample_input_size=model_input_size,
+                              sample_label_size=None, sample_stride=model_input_size / 2,
+                              augmentor=None, mode='test')
 
     img_loader = torch.utils.data.DataLoader(
         dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn_test,
@@ -106,14 +112,14 @@ def gaussian_blend(sz):
 
 
 def load_model(args, device):
-    print(args.model)
-    model = UNet3DPniM2(in_num=1, out_num=3)
+    model = UNet_PNI(in_planes=1, out_planes=3, decode_ratio = args.decode_ratio,\
+                     bn_mode=args.bn_mode, relu_mode=args.relu_mode, init_mode=args.init_mode)
     model = DataParallelWithCallback(model, device_ids=range(args.num_gpu))
     print("Loading model to device: {}.".format(device))
     model = model.to(device)
     print("Finished.")
     print("Loading model state from file {}...".format(args.model))
-    model.load_state_dict(torch.load(args.model))
+    model.load_state_dict(load_checkpoint(args.model, args.num_gpu)['state_dict'])
     print("Finished loading.")
     return model
 
@@ -165,7 +171,7 @@ def test(args, test_loader, result, weight, model, device, model_io_size):
         print('Input Volume max: {}.'.format(result[vol_id].max()))
         # data = (result[vol_id]*255).astype(np.uint8)
         # data[data < 128] = 0
-        hf = h5py.File(args.output + '/volume_' + str(vol_id) + '.h5', 'w')
+        hf = h5py.File(args.output_dir + '/volume_' + str(vol_id) + '.h5', 'w')
         hf.create_dataset('main', data=result[vol_id][:, z_pad:-z_pad, y_pad:-y_pad, x_pad:-x_pad])
         hf.close()
         print("Saved vol_id {}.".format(vol_id))
