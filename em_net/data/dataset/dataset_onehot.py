@@ -26,13 +26,21 @@ class OnehotDataset(BaseDataset):
                  augmentor=None,
                  mode='train'):
 
-        super(Onehot_Dataset, self).__init__(volume,
+        super(OnehotDataset, self).__init__(volume,
                                               label,
                                               sample_input_size,
                                               sample_label_size,
                                               sample_stride,
                                               augmentor,
                                               mode)
+
+        if label != None:
+            if isinstance(label, list):
+                self.num_channels = 0
+                for batch_label in label:
+                    self.num_channels = max(self.num_channels, len(np.unique(batch_label)))
+            else:
+                self.num_channels = len(np.unique(label))
 
     def __getitem__(self, index):
         vol_size = self.sample_input_size
@@ -72,7 +80,7 @@ class OnehotDataset(BaseDataset):
             out_label[out_label==seg_bad] = 0
             out_label = genSegMalis(out_label, 1)
             # replicate-pad the aff boundary
-            out_label = label_one_hot(out_label).astype(np.float32)
+            out_label = self.label_one_hot(out_label).astype(np.float32)
             out_label = torch.from_numpy(out_label.copy())
 
         # Turn input to Pytorch Tensor, unsqueeze once to include the channel dimension:
@@ -105,31 +113,23 @@ class OnehotDataset(BaseDataset):
         return pos, out_input, out_label, weight, weight_factor
 
 
-    def label_one_hot(label_volume):
+    def label_one_hot(self, label_volume):
         """
         Given a numpy array label (z, x, y)
         Split it into channels of (c, z, x, y)
-        using one-hot encoding
+        using one-hot encoding.
+        This function assumes that the labels are in consecutive, incrementing order.
         """
-        unique_labels = np.unique(label_volume)
-        # First, the label might not be in incrementing order. 
-        # Manually create a mapping to make the label number to be in incrementing order.
-        label_map = {}
-        i = 0
-        for unique_label in unique_labels:
-            label_map[unique_label] = i
-            i += 1
-
-        num_channels = len(unique_labels)
 
         Z, X, Y = label_volume.shape[0], label_volume.shape[1], label_volume.shape[2]
         
-        output = np.zeros(shape=(num_channels, Z, X, Y))
-        
+        output = np.zeros(shape=(self.num_channels, Z, X, Y))
+       
+        # This nested for loop is slow. 
         for z in range(Z):
             for x in range(X):
                 for y in range(Y):
-                    label = label_map[label_volume[z, x, y]]
+                    label = label_volume[z, x, y]
                     output[label, z, x, y] = 1
         
         return output
