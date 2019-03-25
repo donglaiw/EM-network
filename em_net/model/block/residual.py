@@ -29,6 +29,20 @@ class resBlock_pni(nn.Module):
             out = self.block4(out)
         return out
 
+class res2dBlock_pni(resBlock_pni):
+    # change 3D conv to 2D
+    def __init__(self, in_planes, out_planes, pad_mode='zero', bn_mode='', relu_mode='', init_mode='', bn_momentum=0.1):
+        self.block1 = conv2dBlock([in_planes], [out_planes], [(3, 3)], [1], [(1, 1)],
+                                    [False], [pad_mode], [bn_mode], [relu_mode], init_mode, bn_momentum)
+        # no relu for the second block
+        self.block2 = conv2dBlock([out_planes]*2, [out_planes]*2, [(3, 3)]*2, [1]*2, [(1, 1)]*2,
+                                    [False] * 2, [pad_mode] * 2, [bn_mode, ''], [relu_mode, ''], init_mode, bn_momentum)
+        self.block3 = getBN(out_planes, 2, bn_mode, bn_momentum)
+        
+        self.block4 = None
+        if relu_mode!='':
+            self.block4 = getRelu(relu_mode)
+
 class resBlock_seIso(nn.Module):
     # Basic residual module of unet
     def __init__(self, in_planes, out_planes):

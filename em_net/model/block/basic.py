@@ -46,6 +46,25 @@ def init_conv(m, init_mode):
         if m.bias is not None:
             nn.init.constant_(m.bias, 0)
 
+def getConv2d(in_planes, out_planes, kernel_size, stride, padding, 
+                  bias, pad_mode='zero', init_mode='', dilation_size=(1,1)):
+    out = []
+    if pad_mode == 'zero': # 0-padding
+        out = [nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, \
+                         dilation=dilation_size, padding=padding, stride=stride, bias=bias)]
+    elif pad_mode == 'replicate': # replication-padding
+        # need 6 values
+        padding = tuple([x for x in padding for _ in range(2)][::-1])
+        out = [nn.ReplicationPad2d(padding),
+                nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size,
+                          stride=stride, dilation=dilation_size, bias=bias)]
+    if len(out)==0: 
+        raise ValueError('Unknown padding option {}'.format(mode))
+    else:
+        if init_mode!='': # do conv init
+            init_conv(out[-1], init_mode)
+        return out
+
 def getConv3d(in_planes, out_planes, kernel_size, stride, padding, 
                   bias, pad_mode='zero', init_mode='', dilation_size=(1,1,1)):
     out = []
@@ -106,6 +125,21 @@ def conv3dBlock(in_planes, out_planes, kernel_size=[(3,3,3)], stride=[1], paddin
             layers.append(getRelu(relu_mode[i]))
     return nn.Sequential(*layers)
 
+def conv2dBlock(in_planes, out_planes, kernel_size=[(3,3)], stride=[1], padding=[0], bias=[True], pad_mode=['zero'], bn_mode=[''], relu_mode=[''], init_mode='kaiming_normal', bn_momentum=0.1, dilation_size=None):
+    # easy to make VGG style layers
+    layers = []
+    if dilation_size is None:
+        dilation_size = [(1, 1)]*len(in_planes)
+    for i in range(len(in_planes)):
+        if in_planes[i]>0:
+            layers += getConv2d(in_planes[i], out_planes[i], kernel_size[i], stride[i], padding[i], bias[i], pad_mode[i], init_mode, dilation_size[i])
+        if bn_mode[i] != '':
+            layers.append(getBN(out_planes[i], 2, bn_mode[i], bn_momentum))
+        if relu_mode[i] != '':
+            layers.append(getRelu(relu_mode[i]))
+    return nn.Sequential(*layers)
+
+
 
 def upsampleBlock(in_planes, out_planes, up=(1,2,2), mode='bilinear',
                  kernel_size = (1,1,1), stride = (1,1,1), padding = (0,0,0), bias=True, init_mode=''):
@@ -133,6 +167,34 @@ def upsampleBlock(in_planes, out_planes, up=(1,2,2), mode='bilinear',
             for m in range(len(out._modules)):
                 init_conv(out._modules[str(m)], init_mode)
             return out
+
+def upsample2dBlock(in_planes, out_planes, up=(2,2), mode='bilinear',
+                 kernel_size = (1,1), stride = (1,1), padding = (0,0), bias=True, init_mode=''):
+        # Upsampling
+        out = None
+        if mode == 'bilinear':
+            out = [nn.Upsample(scale_factor=up, mode='bilinear', align_corners=True),
+                nn.Conv2d(in_planes, out_planes, kernel_size, stride=stride, padding=padding, bias=bias)]
+        elif mode == 'nearest':
+            out = [nn.Upsample(scale_factor=up, mode='nearest'),
+                nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=padding, bias=bias)]
+        elif mode == 'transpose': # dense version
+            out = [nn.ConvTranspose2d(
+                          in_planes, out_planes, kernel_size=kernel_size,
+                          stride=up, bias=bias)]
+        elif mode == 'transposeS': # sparse version
+            out = [nn.ConvTranspose2d(
+                              in_planes, in_planes, kernel_size=up,
+                              stride=up, bias=bias, groups=in_planes),
+                    nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=1, bias=bias)]
+        if out is None:
+            raise ValueError('Unknown upsampling mode {}'.format(mode))
+        else:
+            out = nn.Sequential(*out)
+            for m in range(len(out._modules)):
+                init_conv(out._modules[str(m)], init_mode)
+            return out
+
 
 
 # -- merge layers--
