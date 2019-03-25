@@ -87,9 +87,12 @@ class OnehotDataset(BaseDataset):
         out_input = torch.from_numpy(out_input.copy())
         out_input = out_input.unsqueeze(0)
 
+
         # Calculate Weight and Weight Factor
         weight_factor = None
         weight = None
+        alpha = 10
+
         if out_label is not None:
 
             # ratio: pos/all
@@ -99,7 +102,7 @@ class OnehotDataset(BaseDataset):
                 weight_factor = out_label.float().sum() / torch.prod(torch.tensor(out_label.size()).float())
             weight_factor = torch.clamp(weight_factor, min=1e-3)
             # weighted by 0-1 distribution
-            weight = out_label*(1-weight_factor)/weight_factor + (1-out_label)
+            weight = alpha*out_label*(1-weight_factor)/weight_factor + (1-out_label)
             #weight = torch.ones(out_label.size()) 
             #weight = weight * torch.Tensor(gaussian_blend(vol_size, 0.9))
 
@@ -108,8 +111,13 @@ class OnehotDataset(BaseDataset):
                 # normalize weight to balance batches
                 # otherwise, really small loss due to large invalid region
                 weight = weight * (valid_mask.size/float(valid_mask.sum()))
+            
+            #weight_factor = torch.ones(1)
+            #weight = torch.ones(size=(out_label.shape)) # For debugging the weight.
+
             print(weight_factor, (valid_mask.size/float(valid_mask.sum())))
 
+        
         return pos, out_input, out_label, weight, weight_factor
 
 
@@ -124,13 +132,17 @@ class OnehotDataset(BaseDataset):
         Z, X, Y = label_volume.shape[0], label_volume.shape[1], label_volume.shape[2]
         
         output = np.zeros(shape=(self.num_channels, Z, X, Y))
+
+        for channel in range(self.num_channels):
+            output[channel] = (label_volume == channel)
        
+        """
         # This nested for loop is slow. 
         for z in range(Z):
             for x in range(X):
                 for y in range(Y):
                     label = label_volume[z, x, y]
                     output[label, z, x, y] = 1
-        
+        """
         return output
     
